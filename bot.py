@@ -1,42 +1,42 @@
 import os
-from typing import Any
-
 import discord
+import openai
 from discord.ext import commands
-from dotenv import load_dotenv
 
-from cogs import COMMANDS, EVENT_HANDLERS
-from bot_utilities.config_loader import config
+# Manually set the tokens here (Replace with actual values)
+DISCORD_TOKEN = "MTM0Nzk3NzU5ODczNDY5NjYwMg.GajiLT.2RnwH3R85CPEpMflPFtZWKhsRTodG0I9krantI"
+OPENAI_API_KEY = "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"
 
-load_dotenv('.env')
+# Check if the tokens are set
+if not DISCORD_TOKEN or not OPENAI_API_KEY:
+    raise ValueError("ERROR: DISCORD_BOT_TOKEN or OPENAI_API_KEY is missing! Set them manually.")
 
-class AIBot(commands.AutoShardedBot):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        if config['AUTO_SHARDING']:
-            super().__init__(*args, **kwargs)
-        else:
-            super().__init__(shard_count=1, *args, **kwargs)
+# Set up OpenAI API
+openai.api_key = OPENAI_API_KEY
 
-    async def setup_hook(self) -> None:
-        for cog in COMMANDS:
-            cog_name = cog.split('.')[-1]
-            discord.client._log.info(f"Loaded Command {cog_name}")
-            await self.load_extension(f"{cog}")
-        for cog in EVENT_HANDLERS:
-            cog_name = cog.split('.')[-1]
-            discord.client._log.info(f"Loaded Event Handler {cog_name}")
-            await self.load_extension(f"{cog}")
-        print('If syncing commands is taking longer than usual you are being ratelimited')
-        await self.tree.sync()
-        discord.client._log.info(f"Loaded {len(self.commands)} commands")
+# Enable required Discord intents
+intents = discord.Intents.default()
+intents.message_content = True  # REQUIRED for reading messages
 
-bot = AIBot(command_prefix=[], intents=discord.Intents.all(), help_command=None)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-TOKEN = os.getenv('DISCORD_TOKEN')
+@bot.event
+async def on_ready():
+    print(f"✅ Logged in as {bot.user}")
 
-if TOKEN is None:
-    print("\033[31mLooks like you haven't properly set up a Discord token environment variable in the `.env` file. (Secrets on replit)\033[0m")
-    print("\033[33mNote: If you don't have a Discord token environment variable, you will have to input it every time. \033[0m")
-    TOKEN = input("Please enter your Discord token: ")
+@bot.command()
+async def chat(ctx, *, message: str):
+    """Responds using OpenAI API"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "system", "content": "You are a helpful AI."},
+                      {"role": "user", "content": message}]
+        )
+        reply = response["choices"][0]["message"]["content"]
+        await ctx.send(reply)
+    except Exception as e:
+        await ctx.send("⚠️ Error occurred while processing your request.")
+        print(f"Error: {e}")
 
-bot.run(TOKEN, reconnect=True)
+bot.run(DISCORD_TOKEN)
